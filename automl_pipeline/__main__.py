@@ -399,7 +399,9 @@ def train_final_model(model_class, params, X_train, y_train, X_test, y_test, mod
     print(f"{'='*60}")
 
     v = False if model_name == 'CatBoost' else 0
-    model = model_class(**params, random_state=SEED, n_estimators=5000, verbose=v)
+    # Remove n_estimators from params if present (Optuna may have set it)
+    params = {k: val for k, val in params.items() if k != 'n_estimators'}
+    model = model_class(**params, random_state=SEED, n_estimators=10000, verbose=v)
 
     try:
         model.fit(
