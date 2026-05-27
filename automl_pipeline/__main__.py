@@ -259,7 +259,7 @@ def evaluate_model(model_class, params, X, y, n_folds=N_FOLDS, model_name="model
            'early_stopping_rounds' in str(model.fit.__doc__):
             fit_kwargs['early_stopping_rounds'] = 50
             fit_kwargs['eval_set'] = [(X_val, y_val)]
-            fit_kwargs['verbose'] = False
+            fit_kwargs['verbose'] = 0
 
         try:
             model.fit(X_tr, y_tr, **fit_kwargs)
@@ -295,11 +295,12 @@ def evaluate_with_early_stopping(model_class, params, X, y, n_folds=N_FOLDS, mod
         model = model_class(**fit_params)
 
         try:
+            v = False if 'CatBoost' in str(model_class) else 0
             model.fit(
                 X_tr, y_tr,
                 eval_set=[(X_val, y_val)],
                 early_stopping_rounds=50,
-                verbose=False
+                verbose=v
             )
             best_n = model.best_iteration_ if hasattr(model, 'best_iteration_') else params.get('n_estimators', 1000)
         except Exception:
@@ -352,13 +353,15 @@ def optuna_optimize(model_type, X, y, n_trials, timeout):
             X_tr, X_val = X[train_idx], X[val_idx]
             y_tr, y_val = y[train_idx], y[val_idx]
 
-            model = model_class(**params, random_state=SEED, verbose=False)
+            # verbose: int for LGB/XGB, bool for CTB
+            v = False if model_type == 'ctb' else 0
+            model = model_class(**params, random_state=SEED, verbose=v)
             try:
                 model.fit(
                     X_tr, y_tr,
                     eval_set=[(X_val, y_val)],
                     early_stopping_rounds=30,
-                    verbose=False
+                    verbose=v
                 )
             except Exception:
                 model.fit(X_tr, y_tr)
@@ -395,19 +398,20 @@ def train_final_model(model_class, params, X_train, y_train, X_test, y_test, mod
     print(f"Final training: {model_name}")
     print(f"{'='*60}")
 
-    model = model_class(**params, random_state=SEED, n_estimators=5000, verbose=False)
+    v = False if model_name == 'CatBoost' else 0
+    model = model_class(**params, random_state=SEED, n_estimators=5000, verbose=v)
 
     try:
         model.fit(
             X_train, y_train,
             eval_set=[(X_test, y_test)],
             early_stopping_rounds=50,
-            verbose=False
+            verbose=v
         )
         best_n = model.best_iteration_ if hasattr(model, 'best_iteration_') else params.get('n_estimators', 1000)
         print(f"Best iteration: {best_n}")
     except Exception:
-        model = model_class(**params, random_state=SEED, verbose=False)
+        model = model_class(**params, random_state=SEED, verbose=v)
         model.fit(X_train, y_train)
 
     preds = model.predict(X_test)
@@ -578,7 +582,7 @@ def main():
         elif model_type == 'ctb':
             params = get_ctb_params(None)
             params.update(best_params)
-            params['verbose'] = False
+            params['verbose'] = 0
 
         model, f1, acc, prec, rec, preds = train_final_model(
             model_class, params, X_train, y_train, X_test, y_test,
